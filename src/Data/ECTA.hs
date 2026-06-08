@@ -15,6 +15,7 @@ module Data.ECTA (
     createMu,
 
     -- * Operations
+    nodeMapChildren,
     pathsMatching,
     mapNodes,
     refold,
@@ -34,8 +35,10 @@ module Data.ECTA (
     runEnumerateM,
     enumerateFully,
     getAllTerms,
+    getAllTermsPrune,
     getAllTruncatedTerms,
     naiveDenotation,
+    naiveDenotationBounded,
 
     -- * Visualization / debugging
     toDot,

@@ -14,7 +14,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Test.QuickCheck
 
-import Application.TermSearch.TermSearch
 import Data.ECTA
 import Data.ECTA.Internal.ECTA.Operations
 import Data.ECTA.Internal.ECTA.Type
@@ -51,7 +50,7 @@ doubleNodeSymbols (Node es) = Node $ map doubleEdgeSymbol es
 doubleNodeSymbols n = error $ "doubleNodeSymbols: unexpected " <> show n
 
 testBigNode :: Node
-testBigNode = union $ termsK EmptyNode True 4
+testBigNode = ex3
 
 _testUnreducedConstraint :: Edge
 _testUnreducedConstraint = mkEdge "foo" [Node [Edge "A" [], Edge "B" []], Node [Edge "B" [], Edge "C" []]] (mkEqConstraints [[path [0], path [1]]])
@@ -125,12 +124,9 @@ spec = do
             property $
                 \n1 n2 n3 -> intersect n1 (union [n2, n3]) == union [intersect n1 n2, intersect n1 n3]
 
-    -- intersect is NOT idempotent now because we eagerly dropRedundantEdges.
-    -- Example: (Node [(Edge "f" [(Node [(Edge "a" [])])]),(Edge "f" [(Node [(Edge "a" []),(Edge "b" [])])])])
-    -- `intersect` returns (Node [(Edge "f" [(Node [(Edge "a" [])])])])
-    --
-    -- it "intersect is idempotent" $
-    --   property $ \n1 -> intersect n1 n1 == refold n1 -- Note: we eagerly refold recursive nodes to prevent ECTA grows too large
+        it "intersect is idempotent" $
+            property $
+                \n1 -> intersect n1 n1 == n1
 
     describe "intersection examples" $ do
         -- Intersection examples without Mu nodes
@@ -150,9 +146,8 @@ spec = do
 
         -- Intersection examples with Mu nodes
 
-        -- Note: `intersect` eagerly refolds recursive nodes
         it "intersect (one-step loop) with (its own unfolding: step, one-step)" $
-            intersect intTest7 intTest8 `shouldBe` refold intTest8
+            intersect intTest7 intTest8 `shouldBe` intTest8
 
         it "intersect (one-step loop) with (two-step loop)" $
             intersect intTest7 intTest9 `shouldBe` intTest9
@@ -167,10 +162,10 @@ spec = do
             intersect intTest8 intTest10 `shouldBe` intTest10
 
         it "intersect (two-step loop) with (one step, two-step loop)" $
-            intersect intTest9 intTest10 `shouldBe` refold intTest8
+            intersect intTest9 intTest10 `shouldBe` intTest8
 
         it "intersect with nested Mus" $ do
-            intersect intTest11 intTest12 `shouldBe` refold (Node [Edge "f" [createMu $ \r -> Node [Edge "f" [r]]]])
+            intersect intTest11 intTest12 `shouldBe` Node [Edge "f" [createMu $ \r -> Node [Edge "f" [r]]]]
 
     describe "reduction" $ do
         it "reduction preserves naiveDenotation" $
@@ -230,7 +225,7 @@ spec = do
                 ns' = reduceEqConstraints ecs EmptyConstraints ns
                 ns'' = reduceEqConstraints ecs EmptyConstraints ns'
                 f = \n -> Node [Edge "f" [n]]
-             in (ns' == ns'') && ns' == [f $ f $ f infiniteFNode, f $ f infiniteFNode] `shouldBe` True
+             in (ns' == ns'') && ns' == [f $ f $ f $ f infiniteFNode, f $ f $ f $ infiniteFNode] `shouldBe` True
 
         it "refold folds the simplest unrolled input" $
             refold (Node [Edge "f" [infiniteFNode]]) `shouldBe` infiniteFNode
