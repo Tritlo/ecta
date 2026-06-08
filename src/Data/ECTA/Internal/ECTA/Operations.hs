@@ -6,7 +6,8 @@
 
 module Data.ECTA.Internal.ECTA.Operations (
   -- * Traversal
-    pathsMatching
+    nodeMapChildren
+  , pathsMatching
   , mapNodes
   , crush
   , onNormalNodes
@@ -28,6 +29,10 @@ module Data.ECTA.Internal.ECTA.Operations (
   -- * Membership
   , nodeRepresents
   , edgeRepresents
+
+  -- * Membership of templates
+  , nodeRepresentsTemplate
+  , edgeRepresentsTemplate
 
   -- * Intersection
   , intersect
@@ -84,6 +89,19 @@ import Utility.HashJoin
 -----------------------
 ------ Traversal
 -----------------------
+
+-- | Apply an edge transformation to the outgoing alternatives of a node.
+--
+-- This is a shallow operation: for a normal 'Node' it maps over that node's
+-- edges, and for a 'Mu' it first unfolds the outer recursion and then maps those
+-- edges. It does not recursively traverse child nodes. Spectacular uses this
+-- shape to push environment/equality-constraint edits across every immediate
+-- alternative of an ECTA node without changing the node's children directly.
+nodeMapChildren :: (Edge -> Edge) -> Node -> Node
+nodeMapChildren _ EmptyNode = EmptyNode
+nodeMapChildren f n@(Mu _)  = nodeMapChildren f (unfoldOuterRec n)
+nodeMapChildren f (Node es) = Node (map f es)
+nodeMapChildren _ (Rec _)   = error "nodeMapChildren: unexpected Rec"
 
 -- | Warning: Linear in number of paths, exponential in size of graph.
 --   Only use for very small graphs.
@@ -200,6 +218,45 @@ edgeRepresents :: Edge -> Term -> Bool
 edgeRepresents e = \t@(Term s ts) -> s == edgeSymbol e
                                   && and (zipWith nodeRepresents (edgeChildren e) ts)
                                   && all (eclassSatisfied t) (unsafeGetEclasses $ edgeEcs e)
+  where
+    eclassSatisfied :: Term -> PathEClass -> Bool
+    eclassSatisfied t pec = allTheSame $ map (\p -> getPath p t) $ unPathEClass pec
+
+    allTheSame :: (Eq a) => [a] -> Bool
+    allTheSame =
+        \case
+          []   -> True
+          x:xs -> go x xs
+      where
+        go !_ []      = True
+        go !x (!y:ys) = (x == y) && (go x ys)
+    {-# INLINE allTheSame #-}
+
+-- | Test whether a node can represent a template term.
+--
+-- This is the pruning-oriented variant of 'nodeRepresents'. It delegates to
+-- 'edgeRepresentsTemplate', whose template language treats the exact symbol
+-- @"<v>"@ as a wildcard for the edge symbol. Pruning oracles use this before
+-- expanding a UVar: if the current node already represents a forbidden
+-- rewrite/template, the whole branch can be dropped without enumerating a full
+-- term.
+nodeRepresentsTemplate :: Node -> Term -> Bool
+nodeRepresentsTemplate EmptyNode _ = False
+nodeRepresentsTemplate (Node es) t = any (`edgeRepresentsTemplate` t) es
+nodeRepresentsTemplate n@(Mu _) t  = nodeRepresentsTemplate (unfoldOuterRec n) t
+nodeRepresentsTemplate _ _         = False
+
+-- | Test whether one edge can represent a template term.
+--
+-- The term matches normally when its symbol is the edge symbol. It also matches
+-- when the term symbol is exactly @"<v>"@, in which case the symbol is treated
+-- as a wildcard but child nodes and equality constraints still have to match.
+edgeRepresentsTemplate :: Edge -> Term -> Bool
+edgeRepresentsTemplate e = \t@(Term s@(Symbol txt) ts) ->
+  let childrenSatisfied = and (zipWith nodeRepresentsTemplate (edgeChildren e) ts)
+      consSatisfied = all (eclassSatisfied t) (unsafeGetEclasses $ edgeEcs e)
+  in (s == edgeSymbol e && childrenSatisfied && consSatisfied)
+     || (txt == "<v>" && childrenSatisfied && consSatisfied)
   where
     eclassSatisfied :: Term -> PathEClass -> Bool
     eclassSatisfied t pec = allTheSame $ map (\p -> getPath p t) $ unPathEClass pec
@@ -335,7 +392,7 @@ emptyIntersectionDom = ID Map.empty Set.empty
 
 intersectOpen :: (IntersectionDom, Node, Node) -> Node
 {-# NOINLINE intersectOpen #-}
-intersectOpen = memo (NameTag "intersectOpen") (\(dom, l, r) -> refold $ nodeDropRedundantEdges $ onNode dom l r)
+intersectOpen = memo (NameTag "intersectOpen") (\(dom, l, r) -> onNode dom l r)
   where
     onNode :: IntersectionDom -> Node -> Node -> Node
     onNode !dom l r =
