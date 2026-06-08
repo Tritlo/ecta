@@ -1,5 +1,6 @@
 .idea/
 .stack-work/
+dist-newstyle/
 *~
 
 *.pkl
