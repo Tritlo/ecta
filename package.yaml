@@ -71,7 +71,7 @@ library:
   source-dirs: src
   dependencies:
     - array
-    - equivalence >= 0.4.1
+    - equivalence >= 0.4.1 && < 0.5
     - extra
     - fgl
     - hashtables
@@ -108,7 +108,7 @@ tests:
     - -Wno-orphans
     dependencies:
       - ecta
-      - equivalence
+      - equivalence >= 0.4.1 && < 0.5
       - hspec
       - QuickCheck
     verbatim: |
