@@ -2,16 +2,16 @@
 
 module Application.TermSearch.Utils where
 
-import           Data.Map                     ( Map  )
-import qualified Data.Map                    as Map
-import           Data.Text                    ( Text )
-import qualified Data.Text                   as Text
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Text (Text)
+import qualified Data.Text as Text
 
-import           Data.ECTA
-import           Data.ECTA.Paths
-import           Data.ECTA.Term
+import Data.ECTA
+import Data.ECTA.Paths
+import Data.ECTA.Term
 
-import           Application.TermSearch.Type
+import Application.TermSearch.Type
 
 --------------------------------------------------------------------------------
 ------------------------------- Type Constructors ------------------------------
@@ -75,11 +75,12 @@ genVar "b" = var2
 genVar "c" = var3
 genVar "d" = var4
 genVar "acc" = varAcc
-genVar s = Node [Edge (Symbol $ varPrefix <>s) []]
+genVar s = Node [Edge (Symbol $ varPrefix <> s) []]
 
 isVar :: Node -> Bool
 isVar x | x `elem` vars = True
-    where vars = [var1, var2, var3, var4, varAcc]
+  where
+    vars = [var1, var2, var3, var4, varAcc]
 isVar (Node [Edge (Symbol t) []]) = varPrefix `Text.isPrefixOf` t
 isVar _ = False
 
@@ -91,92 +92,101 @@ isVar _ = False
 
 mkGroups :: [(Text, TypeSkeleton)] -> (Map TypeSkeleton Text, Map Text Text)
 mkGroups [] = (Map.empty, Map.empty)
-mkGroups ((name, typ):comps) = let (groups, nameToRepresentative) = mkGroups comps
-                                   freshName = Text.pack ("f" <> show (Map.size groups))
-                                in if typ `Map.member` groups 
-                                  then (groups, Map.insert name (groups Map.! typ) nameToRepresentative)
-                                  else (Map.insert typ freshName groups, Map.insert name freshName nameToRepresentative)
+mkGroups ((name, typ) : comps) =
+    let (groups, nameToRepresentative) = mkGroups comps
+        freshName = Text.pack ("f" <> show (Map.size groups))
+     in if typ `Map.member` groups
+            then (groups, Map.insert name (groups Map.! typ) nameToRepresentative)
+            else (Map.insert typ freshName groups, Map.insert name freshName nameToRepresentative)
 
 getRepOf :: [(Text, [Text])] -> Text -> Text
 getRepOf [] fname = error $ "cannot find " ++ show fname ++ " in any group"
-getRepOf ((x, fnames):xs) fname
-  | fname `elem` fnames = x
-  | otherwise = getRepOf xs fname
-
+getRepOf ((x, fnames) : xs) fname
+    | fname `elem` fnames = x
+    | otherwise = getRepOf xs fname
 
 --------------------
 ------- Different cases of loops
 --------------------
 
 replicatorTau :: Node
-replicatorTau = createMu
-  (\n -> union
-    ([var1, var2] ++ map (Node . (: []) . constructorToEdge n) usedConstructors)
-  )
- where
-  constructorToEdge :: Node -> (Text, Int) -> Edge
-  constructorToEdge n (nm, arity) = Edge (Symbol nm) (replicate arity n)
+replicatorTau =
+    createMu
+        ( \n ->
+            union
+                ([var1, var2] ++ map (Node . (: []) . constructorToEdge n) usedConstructors)
+        )
+  where
+    constructorToEdge :: Node -> (Text, Int) -> Edge
+    constructorToEdge n (nm, arity) = Edge (Symbol nm) (replicate arity n)
 
-  usedConstructors = [("Pair", 2)]
+    usedConstructors = [("Pair", 2)]
 
 replicator :: Node
-replicator = Node
-  [ mkEdge
-      "Pair"
-      [ Node
-        [ mkEdge "Pair"
-                 [replicatorTau, replicatorTau]
-                 (mkEqConstraints [[path [0, 0], path [0, 1], path [1]]])
-        ]
-      , Node [
-        Edge "Pair" [replicatorTau, replicatorTau]]
-      ]
-      (mkEqConstraints [[path [0, 0], path [0, 1], path [1]]])
-  ]
-
-loop1 :: Node
-loop1 = Node
-  [ mkEdge
-      "f"
-      [ Node
-          [ mkEdge
-            "g"
+replicator =
+    Node
+        [ mkEdge
+            "Pair"
             [ Node
-                [ Edge
-                    "h"
-                    [ Node
-                      [ Edge "Pair" [replicatorTau, replicatorTau]
-                      , Edge "var2" []
-                      ]
-                    , Node [Edge "Pair" [replicatorTau, replicatorTau]]
-                    ]
+                [ mkEdge
+                    "Pair"
+                    [replicatorTau, replicatorTau]
+                    (mkEqConstraints [[path [0, 0], path [0, 1], path [1]]])
+                ]
+            , Node
+                [ Edge "Pair" [replicatorTau, replicatorTau]
                 ]
             ]
-            (mkEqConstraints [[path [0, 0], path [0, 1, 0]]])
-          , Edge "gg" [Node [Edge "Pair" [var2, var2]]]
-          ]
-      ]
-      (mkEqConstraints [[path [0, 0, 0], path [0, 0, 1]]])
-  ]
+            (mkEqConstraints [[path [0, 0], path [0, 1], path [1]]])
+        ]
+
+loop1 :: Node
+loop1 =
+    Node
+        [ mkEdge
+            "f"
+            [ Node
+                [ mkEdge
+                    "g"
+                    [ Node
+                        [ Edge
+                            "h"
+                            [ Node
+                                [ Edge "Pair" [replicatorTau, replicatorTau]
+                                , Edge "var2" []
+                                ]
+                            , Node [Edge "Pair" [replicatorTau, replicatorTau]]
+                            ]
+                        ]
+                    ]
+                    (mkEqConstraints [[path [0, 0], path [0, 1, 0]]])
+                , Edge "gg" [Node [Edge "Pair" [var2, var2]]]
+                ]
+            ]
+            (mkEqConstraints [[path [0, 0, 0], path [0, 0, 1]]])
+        ]
 
 loop2 :: Node
-loop2 = Node
-  [ mkEdge
-      "g"
-      [ Node
-        [ mkEdge "Pair"
-                 [Node [Edge "List" [replicatorTau]], replicatorTau]
-                 (mkEqConstraints [[path [0, 0], path [1]]])
-        , Edge "f" [var1, Node [Edge "List" [var1]]]
+loop2 =
+    Node
+        [ mkEdge
+            "g"
+            [ Node
+                [ mkEdge
+                    "Pair"
+                    [Node [Edge "List" [replicatorTau]], replicatorTau]
+                    (mkEqConstraints [[path [0, 0], path [1]]])
+                , Edge "f" [var1, Node [Edge "List" [var1]]]
+                ]
+            , Node
+                [ mkEdge
+                    "Pair"
+                    [Node [Edge "List" [replicatorTau]], replicatorTau]
+                    (mkEqConstraints [[path [0], path [1]]])
+                , Edge "f" [var1, var1]
+                ]
+            ]
+            ( mkEqConstraints
+                [[path [0, 1, 0], path [1, 1]], [path [0, 0], path [1, 0]]]
+            )
         ]
-      , Node
-        [ mkEdge "Pair"
-                 [Node [Edge "List" [replicatorTau]], replicatorTau]
-                 (mkEqConstraints [[path [0], path [1]]])
-        , Edge "f" [var1, var1]
-        ]
-      ]
-      (mkEqConstraints
-        [[path [0, 1, 0], path [1, 1]], [path [0, 0], path [1, 0]]]
-      )
-  ]

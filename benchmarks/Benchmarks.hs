@@ -9,10 +9,10 @@ import TestData
 
 -----------------------------------------------------------------------
 
-
 main = do
-  defaultMain [
-                bgroup "pathable" [
-                  bench "getPath" $ whnf nodeCount $ getPath (path [2,0,2]) aBigNode
-                ]
-              ]
+    defaultMain
+        [ bgroup
+            "pathable"
+            [ bench "getPath" $ whnf nodeCount $ getPath (path [2, 0, 2]) aBigNode
+            ]
+        ]

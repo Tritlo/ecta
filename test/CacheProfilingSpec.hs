@@ -1,7 +1,7 @@
-{-# LANGUAGE CPP               #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CacheProfilingSpec ( spec ) where
+module CacheProfilingSpec (spec) where
 
 import Test.Hspec
 
@@ -16,7 +16,6 @@ import TermSearch
 #endif
 
 -----------------------------------------------------------------
-
 
 --------------------------------------------------------------
 ----------------------------- Main ---------------------------
